@@ -1,4 +1,4 @@
-source 'https://rubygems.org'
+source 'https://gems.ruby-china.com'
 
 gem 'rake', '11.3.0'
 gem 'pry'
