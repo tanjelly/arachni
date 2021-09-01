@@ -106,6 +106,7 @@ Gem::Specification.new do |s|
     s.add_dependency 'watir',               '6.12.0'
     s.add_dependency 'selenium-webdriver',  '3.14.0'
     s.add_dependency 'capybara',            '3.7.1'
+    s.add_dependency 'docile',              '1.3.5'
 
     # Markdown to HTML conversion, used by the HTML report for component
     # descriptions.
