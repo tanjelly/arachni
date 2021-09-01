@@ -105,6 +105,7 @@ Gem::Specification.new do |s|
     # Browser support for DOM/JS/AJAX analysis stuff.
     s.add_dependency 'watir',               '6.12.0'
     s.add_dependency 'selenium-webdriver',  '3.14.0'
+    s.add_dependency 'capybara',            '3.7.1'
 
     # Markdown to HTML conversion, used by the HTML report for component
     # descriptions.
