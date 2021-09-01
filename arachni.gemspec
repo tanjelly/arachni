@@ -107,6 +107,7 @@ Gem::Specification.new do |s|
     s.add_dependency 'selenium-webdriver',  '3.14.0'
     s.add_dependency 'capybara',            '3.7.1'
     s.add_dependency 'docile',              '1.3.5'
+    s.add_dependency 'diff-lcs',            '1.3'
 
     # Markdown to HTML conversion, used by the HTML report for component
     # descriptions.
