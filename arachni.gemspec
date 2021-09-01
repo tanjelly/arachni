@@ -108,6 +108,7 @@ Gem::Specification.new do |s|
     s.add_dependency 'capybara',            '3.7.1'
     s.add_dependency 'docile',              '1.3.5'
     s.add_dependency 'diff-lcs',            '1.3'
+    s.add_dependency 'simplecov',           '0.18.5'
 
     # Markdown to HTML conversion, used by the HTML report for component
     # descriptions.
