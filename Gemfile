@@ -1,6 +1,6 @@
 source 'https://gems.ruby-china.com'
 
-gem 'rake', '11.3.0'
+gem 'rake', '12.3.1'
 gem 'pry'
 
 group :docs do
@@ -12,7 +12,7 @@ group :spec do
     gem 'simplecov', require: false, group: :test
 
     gem 'rspec', '2.99.0'
-    gem 'faker'
+    gem 'faker', '1.9.1'
 end
 
 group :prof do
