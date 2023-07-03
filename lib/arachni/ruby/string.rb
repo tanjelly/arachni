@@ -176,6 +176,12 @@ class String
         dup.recode!
     end
 
+    def convert!( charset )
+        force_encoding( charset )
+        encode!( 'utf-8', invalid: :replace, undef: :replace )
+        self
+    end
+
     def binary?
         # Stolen from YAML.
         BINARY_CACHE.fetch self do

@@ -412,6 +412,14 @@ class Request < Message
         max_size = nil if max_size < 0
 
         ep = self.class.encode_hash( self.effective_parameters, @raw_parameters )
+        url_parameters = ""
+        ep.each do |k, v|
+            if v.nil? || v.empty?
+                url_parameters += "&#{Arachni::URI.encode_basic(k)}"
+            else
+                url_parameters += "&#{Arachni::URI.encode_basic(k)}=#{Arachni::URI.encode_basic(v)}"
+            end
+        end
 
         eb = self.body
         if eb.is_a?( Hash )
@@ -423,7 +431,7 @@ class Request < Message
             headers:         headers,
 
             body:            eb,
-            params:          ep,
+            params:          {},
 
             userpwd:         userpwd,
 
@@ -497,7 +505,13 @@ class Request < Message
             end
         end
 
-        typhoeus_request = Typhoeus::Request.new( url.split( '?').first, options )
+        real_url = if url_parameters.empty?
+            url.split( '?', 2 ).first
+        else
+            "#{url.split( '?' ).first}?#{url_parameters[1, url_parameters.size]}"
+        end
+        
+        typhoeus_request = Typhoeus::Request.new( real_url, options )
 
         aborted = nil
 
@@ -759,6 +773,7 @@ class Request < Message
         #   Parameters.
         def parse_body( body )
             return {} if body.to_s.empty?
+            return body if body.is_a? ( Hash )
 
             body.split( '&' ).inject( {} ) do |h, pair|
                 name, value = pair.split( '=', 2 )

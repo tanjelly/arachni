@@ -272,9 +272,13 @@ module Auditor
             def self.create_issue( options )
                 check_info = self.info.dup
                 check_info.delete( :issue )
+                check_info.delete( :author )
                 check_info[:shortname] = self.shortname
-
+                # check_info[:description] = check_info[:description].to_s.strip
+                
                 issue_data = self.info[:issue].merge( check: check_info ).merge( options )
+                issue_data[:description] = issue_data[:description].to_s.strip
+                issue_data[:remedy_guidance] = issue_data[:remedy_guidance].to_s.strip
                 Issue.new( issue_data )
             end
         end

@@ -200,7 +200,12 @@ class Server < Base
     end
 
     def log( response, train = true, options = {}, &block )
-        block.call( response ) if block_given?
+        if block_given?
+            block.call( response )
+            auditor.framework.trainer.push( response )
+
+            return nil
+        end
 
         issue = auditor.log_remote_file( response, false, options )
 

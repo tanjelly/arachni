@@ -342,7 +342,7 @@ module Auditable
                 should_skip = false
                 skip_like_option.each do |like|
                     if like.call( elem )
-                        mid = elem.audit_id( payload  )
+                        mid = elem.audit_id( payload )
                         print_debug_level_2 ":skip_like callbacks returned true for mutation, skipping: #{mid}"
                         print_debug_level_2 "--> #{like}"
                         break should_skip = true

@@ -37,7 +37,7 @@ module Capabilities::Refreshable
             end
 
             # get user updates
-            updates = changes
+            updates = changes.select{ |k| k != nonce_name }
             # update the form's inputs with the fresh ones and re-apply the user changes
             updated = update( f.inputs ).update( updates )
             block.call( updated ) if block_given?

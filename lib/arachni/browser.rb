@@ -16,7 +16,7 @@ require_relative 'browser/javascript'
 
 module Arachni
 
-# @note Depends on PhantomJS 2.1.1.
+# @note Depends on WebDriver.
 #
 # Real browser driver providing DOM/JS/AJAX support.
 #
@@ -59,13 +59,13 @@ class Browser
         class Load < Error
         end
 
-        # @author Tasos "Zapotek" Laskos <tasos.laskos@arachni-scanner.com>
+        # @author Tasos "Zapotek" Laskos <tasos.laskos@sarosys.com>
         class MissingExecutable < Error
         end
 
     end
 
-    # How much time to wait for the PhantomJS process to spawn before respawning.
+    # How much time to wait for the WebDriver process to spawn before respawning.
     BROWSER_SPAWN_TIMEOUT = 60
 
     # How much time to wait for a targeted HTML element to appear on the page
@@ -84,7 +84,14 @@ class Browser
     ASSET_EXTRACTORS = [
         /<\s*link.*?href=\s*['"]?(.*?)?['"]?[\s>]/im,
         /src\s*=\s*['"]?(.*?)?['"]?[\s>]/i,
+        /\.open\(['"]?(.*?)?['"]?[\)\s>]/i,
+        /\.location.*?=['"]?(.*?)?['"]?[\s>]/i,
     ]
+
+    # Unfortunately, we can't expose the HTTP user-agent for client-side
+    # stuff, because Selenium needs to know that we're using a Webkit-based
+    # browser in order to use the right JS code to trigger events etc.
+    USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
 
     # @return   [Array<Page::DOM::Transition>]
     attr_reader :transitions
@@ -124,7 +131,16 @@ class Browser
     # @see #skip_state?
     attr_reader :skip_states
 
+    # @return   [Integer]
+    #   PID of the lifeline process managing the browser process.
+    attr_reader :lifeline_pid
+
+    # @return   [Integer]
+    #   PID of the browser process.
+    attr_reader :browser_pid
+
     attr_reader :last_url
+    attr_reader :document
 
     class <<self
 
@@ -138,12 +154,13 @@ class Browser
         end
 
         # @return   [String]
-        #   Path to the PhantomJS executable.
+        #   Path to the WebDriver executable.
         def executable
             @path ||= begin
-                path = Selenium::WebDriver::Platform.find_binary('chromedriver')
-                raise Error::MissingExecutable, 'chromedriver could not be found in PATH.' unless path
+                path = Selenium::WebDriver::Platform.find_binary('phantomjs')
+                raise Error::MissingExecutable, 'WebDriver could not be found in PATH.' unless path
                 Selenium::WebDriver::Platform.assert_executable path
+
                 path
             end
         end
@@ -181,7 +198,7 @@ class Browser
     def initialize( options = {} )
         super()
         @options = options.dup
-
+        
         @ignore_scope = options[:ignore_scope]
 
         @width  = options[:width]  || 1600
@@ -221,6 +238,7 @@ class Browser
         @last_url = nil
 
         @javascript = Javascript.new( self )
+        @document = ''
     end
 
     def clear_buffers
@@ -350,7 +368,7 @@ class Browser
                     ).until { @selenium.find_element( :css, css ) }
 
                     print_info "#{css.inspect} appeared for: #{url}"
-                rescue Selenium::WebDriver::Error::TimeoutError
+                rescue Selenium::WebDriver::Error::TimeOutError
                     print_bad "#{css.inspect} did not appear for: #{url}"
                 end
 
@@ -375,12 +393,40 @@ class Browser
 
     def wait_till_ready
         @javascript.wait_till_ready
+        @document = self.source
 
         if Options.browser_cluster.wait_for_timers?
             wait_for_timers
         end
 
         wait_for_pending_requests
+    end
+
+    def shutdown
+        print_debug 'Shutting down...'
+
+        print_debug_level_2 'Killing process.'
+        if @kill_process
+            begin
+                @kill_process.close
+            rescue => e
+                print_debug_exception e
+            end
+        end
+
+        print_debug_level_2 'Shutting down proxy...'
+        @proxy.shutdown rescue Reactor::Error::NotRunning
+        print_debug_level_2 '...done.'
+
+        @proxy        = nil
+        @kill_process = nil
+        @watir        = nil
+        @selenium     = nil
+        @lifeline_pid = nil
+        @browser_pid  = nil
+        @browser_url  = nil
+
+        print_debug '...shutdown complete.'
     end
 
     # @return   [String]
@@ -393,6 +439,9 @@ class Browser
     #   Current URL, as provided by the browser.
     def dom_url
         @selenium.current_url
+    rescue => e
+        print_debug_exception e
+        'about:blank'
     end
 
     # Explores the browser's DOM tree and captures page snapshots for each
@@ -817,7 +866,7 @@ class Browser
         end
 
         page                          = r.to_page
-        page.body                     = source
+        page.body                     = @document
         page.dom.url                  = d_url
         page.dom.cookies              = self.cookies
         page.dom.digest               = @javascript.dom_digest
@@ -825,7 +874,7 @@ class Browser
         page.dom.data_flow_sinks      = data_flow_sinks[@javascript.taint] || []
         page.dom.transitions          = @transitions.dup
         page.dom.skip_states          = skip_states.dup
-
+        
         if Options.audit.ui_inputs?
             page.ui_inputs = Element::UIInput.from_browser( self, page )
         end
@@ -987,11 +1036,11 @@ class Browser
              # this out ourselves, by checking for JS visibility.
             javascript.run( 'return document.cookie' )
         # We may not have a page.
-        rescue Selenium::WebDriver::Error::WebDriverError
+        rescue
             ''
         end
 
-        # The domain attribute cannot be trusted, PhantomJS thinks all cookies
+        # The domain attribute cannot be trusted, WebDriver thinks all cookies
         # are for subdomains too.
         # Do not try to hack around this because it'll be a waste of time,
         # leading to confusion and duplicate cookies.
@@ -1022,7 +1071,9 @@ class Browser
     # @return   [String]
     #   HTML code of the evaluated (DOM/JS/AJAX) page.
     def source
-        @selenium.page_source
+        javascript.run( 'return document.documentElement.outerHTML' ).to_s.recode
+    rescue Selenium::WebDriver::Error::WebDriverError => e
+        @selenium.page_source.recode
     end
 
     def load_delay
@@ -1086,83 +1137,31 @@ class Browser
     def selenium
         return @selenium if @selenium
 
-        start_proxy
-
-        proxy_uri = URI( @proxy.url )
-
-        dir = "#{Options.paths.tmpdir}/Arachni_Chrome_#{self.object_id}/"
-        FileUtils.rm_rf dir
-        FileUtils.mkdir dir
-        at_exit do
-            FileUtils.rm_rf dir
-        end
+        # For some weird reason the Typhoeus client is very slow for
+        # WebDriver and causes a boatload of time-outs.
+        client = Selenium::WebDriver::Remote::Http::Default.new
+        client.open_timeout = Options.browser_cluster.job_timeout
+        client.read_timeout = Options.browser_cluster.job_timeout
 
         @selenium = Selenium::WebDriver.for(
-            :chrome,
-            capabilities: Selenium::WebDriver::Chrome::Options.new(
-                emulation: {
-                    userAgent: Arachni::Options.http.user_agent
-                },
-                args: [
-                        '--allow-running-insecure-content',
-                        '--disable-web-security',
-                        '--reduce-security-for-testing',
-                        '--ignore-certificate-errors',
-                        '--no-sandbox',
-                        '--disable-plugins',
-                        "--user-data-dir=#{dir}",
-                        "--proxy-server=#{proxy_uri.host}:#{proxy_uri.port}",
-                        "--buid=46464646",
-                        "--headless"
-                ]
-            ),
-            http_client: Selenium::WebDriver::Remote::Http::Typhoeus.new
-        )
+            :remote,
 
-    rescue Selenium::WebDriver::Error::WebDriverError => e
-        print_error "Please ensure that chromedriver and Chrome are the same" <<
-                      " version and in your PATH."
-        raise e
+            # We need to spawn our own WebDriver process because Selenium's
+            # way sometimes gives us zombies.
+            url:                  spawn_browser,
+            desired_capabilities: capabilities,
+            http_client:          client
+        )
     end
 
-    def shutdown
-        print_debug 'Shutting down...'
-
-        if @selenium
-            @selenium.close
-
-            print_debug_level_2 'Quiting Selenium...'
-            # So freaking hacky but @selenium.quit freezes if we don't detach first.
-            @selenium.instance_eval do
-                bridge.quit
-
-                @service.instance_eval do
-                    Process.detach @process.pid
-                    @process.stop
-                end
-            end
-
-            @selenium.quit rescue Errno::ECONNREFUSED
-            # @selenium.quit rescue Selenium::WebDriver::Error::WebDriverError
-            print_debug_level_2 '...done.'
-
-        end
-
-        if @proxy
-            print_debug_level_2 'Shutting down proxy...'
-            @proxy.shutdown rescue Reactor::Error::NotRunning
-            print_debug_level_2 '...done.'
-        end
-
-        @proxy    = nil
-        @watir    = nil
-        @selenium = nil
-
-        print_debug '...shutdown complete.'
+    def alive?
+        @lifeline_pid && Processes::Manager.alive?( @lifeline_pid )
     end
 
     def inspect
         s = "#<#{self.class} "
+        s << "pid=#{@lifeline_pid} "
+        s << "browser_pid=#{@browser_pid} "
         s << "last-url=#{@last_url.inspect} "
         s << "transitions=#{@transitions.size}"
         s << '>'
@@ -1251,6 +1250,107 @@ class Browser
         Options.input.value_for_name( name )
     end
 
+    def spawn_browser
+        if !spawn_webdriver
+            fail Error::Spawn, 'Could not start the browser process.'
+        end
+
+        @browser_url
+    end
+
+    def spawn_webdriver
+        return @browser_url if @browser_url
+
+        print_debug 'Spawning WebDriver...'
+
+        ChildProcess.posix_spawn = true
+
+        port   = nil
+        output = ''
+
+        10.times do |i|
+            # Clear output of previous attempt.
+            output = ''
+            done   = false
+            port   = Utilities.available_port
+
+            start_proxy
+
+            print_debug_level_2 "Attempt ##{i}, chose port number #{port}"
+
+            begin
+                with_timeout BROWSER_SPAWN_TIMEOUT do
+                    print_debug_level_2 "Spawning process: #{self.class.executable}"
+
+                    r, w  = IO.pipe
+                    ri, @kill_process = IO.pipe
+
+                    @lifeline_pid = Processes::Manager.spawn(
+                        :browser,
+                        executable: self.class.executable,
+                        without_arachni: true,
+                        fork: false,
+                        new_pgroup: true,
+                        stdin: ri,
+                        stdout: w,
+                        stderr: w,
+                        port: port,
+                        proxy_url: @proxy.url
+                    )
+
+                    w.close
+                    ri.close 
+
+                    print_debug_level_2 'Process spawned, waiting for WebDriver server...'
+
+                    # Wait for WebDriver to initialize.
+                     while !output.include?( 'running on port' )
+                         begin
+                             output << r.readpartial( 8192 )
+                         # EOF or something, take a breather before retrying.
+                         rescue
+                             sleep 0.05
+                         end
+                     end
+
+                    @browser_pid = output.scan( /^PID: (\d+)/ ).flatten.first.to_i
+
+                    print_debug_level_2 '...WebDriver server is up.'
+                    done = true
+                end
+            rescue Timeout::Error
+                print_debug 'Spawn timed-out.'
+            end
+
+            if !output.empty?
+                print_debug_level_2 output
+            end
+
+            if done
+                print_debug 'WebDriver is ready.'
+                break
+            end
+
+            print_debug_level_2 'Killing process.'
+
+            # Kill everything.
+            shutdown
+        end
+
+        # Something went really bad, the browser couldn't be spawned even
+        # after our valiant efforts.
+        #
+        # Bail out for now and count on the BrowserCluster to retry to boot
+        # another process ass needed.
+        if !@lifeline_pid
+            log_error 'Could not spawn browser process.'
+            log_error output
+            return
+        end
+
+        @browser_url = "http://127.0.0.1:#{port}"
+    end
+
     def start_proxy
         print_debug 'Booting up...'
 
@@ -1272,7 +1372,7 @@ class Browser
     def start_webdriver
         print_debug_level_2 'Starting WebDriver...'
         @watir = ::Watir::Browser.new( selenium )
-        print_debug_level_2 "... started WebDriver."
+        print_debug_level_2 "... started WebDriver at: #{@browser_url}"
 
         print_debug '...boot-up completed.'
     end
@@ -1291,6 +1391,7 @@ class Browser
         return if page.dom.data_flow_sinks.empty? &&
             page.dom.execution_flow_sinks.empty?
 
+        page.body = @document.dup
         notify_on_new_page_with_sink( page )
 
         return if !store_pages?
@@ -1425,6 +1526,30 @@ EOJS
         @selenium.manage.window.resize_to( @width, @height )
     end
 
+    def capabilities
+        Selenium::WebDriver::Remote::Capabilities.phantomjs(
+            # Selenium tries to be helpful by including screenshots for errors
+            # in the JSON response. That's not gonna fly in this use case as
+            # parsing lots of massive JSON responses at the same time will
+            # have a significant impact on performance.
+            takes_screenshot: false,
+
+            # Needs to include the string Webkit:
+            #   https://github.com/ariya/phantomjs/issues/14198
+            #
+            # Default is:
+            #   Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.1.1 Safari/538.1
+            'phantomjs.page.settings.userAgent'                   =>
+                USER_AGENT,
+            'phantomjs.page.customHeaders.X-Web-Browser-Auth' =>
+                auth_token,
+            'phantomjs.page.settings.resourceTimeout'             =>
+                Options.http.request_timeout,
+            'phantomjs.page.settings.loadImages'                  =>
+                !Options.browser_cluster.ignore_images
+        )
+    end
+
     def flush_request_transitions
         @request_transitions.dup
     ensure
@@ -1505,7 +1630,7 @@ EOJS
     def response_handler( request, response )
         return if request.url.include?( request_token )
 
-        # Prevent PhantomJS from caching the root page, we need to have an
+        # Prevent WebDriver from caching the root page, we need to have an
         # associated response.
         #
         # Also don't cache when we don't have a @last_url because this could
@@ -1630,6 +1755,7 @@ EOJS
 
             ASSET_EXTRACTORS.each do |regexp|
                 response.body.scan( regexp ).flatten.compact.each do |url|
+                    next if !url.to_s.start_with?( 'http://' ) && !url.to_s.start_with?( 'https://' )
                     next if !(domain = self.class.add_asset_domain( url ))
 
                     print_debug_level_2 "#{domain} from #{url} based on #{regexp.source}"
@@ -1664,7 +1790,7 @@ EOJS
         end
 
         case request.method
-            when :get
+            when :delete, :get
                 inputs = request.parsed_url.query_parameters
                 return if inputs.empty?
 
@@ -1675,13 +1801,13 @@ EOJS
                     inputs: inputs
                 )
 
-            when :post
+            when :post, :put, :patch
                 inputs = request.parsed_url.query_parameters
                 if inputs.any?
                     elements[:forms] << Form.new(
                         url:    @last_url,
                         action: request.url,
-                        method: :get,
+                        method: request.method,
                         inputs: inputs
                     )
                 end
@@ -1789,7 +1915,7 @@ EOJS
     end
 
     def normalize_watir_url( url )
-        normalize_url( url.gsub( ';', '%3B' )  ).gsub( '%3B', '%253B' )
+        normalize_url( Arachni::URI.encode( url, ';' ) ).gsub( '%3B', '%253B' )
     end
 
 end

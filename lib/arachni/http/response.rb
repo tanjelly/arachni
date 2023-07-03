@@ -151,6 +151,7 @@ class Response < Message
 
         if (type = headers.content_type)
             return @is_text = true if type.start_with?( 'text/' )
+            return @is_text = true if type.include?( 'json' ) || type.include?( 'xml' ) || type.include?( 'javascript' )
 
             # Non "text/" nor "application/" content types will surely not be
             # text-based so bail out early.

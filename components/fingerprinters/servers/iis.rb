@@ -19,7 +19,9 @@ module Platform::Fingerprinters
 class IIS < Platform::Fingerprinter
 
     def run
-        platforms << :windows << :iis if server_or_powered_by_include? 'iis'
+        platforms << :windows << :iis if server_or_powered_by_include? 'microsoft-iis'
+        platforms << :windows << :iis if server_or_powered_by_include? 'microsoft-httpapi'
+        platforms << :windows << :iis if !headers['microsoftofficewebserver'].nil?
     end
 
 end

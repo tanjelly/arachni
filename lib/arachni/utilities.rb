@@ -34,6 +34,11 @@ module Utilities
         @@random_seed ||= generate_token
     end
 
+    # @return [String] random number string
+    def random_int
+        @@random_int ||= "#{rand(10000..99999)}"
+    end
+
     # @see Arachni::Element::Form.from_response
     def forms_from_response( *args )
         Form.from_response( *args )
@@ -52,6 +57,14 @@ module Utilities
     # @see Arachni::Element::Form.decode
     def form_decode( *args )
         Form.decode( *args )
+    end
+
+    def hex_to_str( data )
+        data.scan( /../ ).map { |x| x.to_i( 16 ) }.pack( "C*" )
+    end
+
+    def hex_from_str( data )
+        data.bytes.to_a.map { |b| sprintf("%02X", b) }.join
     end
 
     # @see Arachni::HTTP::Request.parse_body
@@ -146,6 +159,31 @@ module Utilities
     # @see Arachni::URI.parse_query
     def uri_parse_query( url )
         URI.parse_query( url )
+    end
+
+    def tcp_send_and_recv( host, port, data, timeout, is_ssl )
+        if !is_ssl
+            socket = TCPSocket.open(host, port)
+            socket.setsockopt( Socket::IPPROTO_TCP, Socket::TCP_NODELAY, timeout * 1000 )
+            socket.print(data)
+            response = socket.read()
+            socket.close
+
+            response
+        else
+            socket = TCPSocket.new(host, port)
+            context = OpenSSL::SSL::SSLContext.new
+            context.verify_mode = OpenSSL::SSL::VERIFY_NONE
+            context.ssl_timeout = timeout
+            ssl_socket = OpenSSL::SSL::SSLSocket.new(socket, context)
+            ssl_socket.connect
+
+            ssl_socket.print(data)
+            response = ssl_socket.read()
+            ssl_socket.close
+
+            response
+        end
     end
 
     # @see URI.to_absolute
@@ -451,6 +489,22 @@ module Utilities
         cnt = 0
         regexps.each { |filter| cnt += 1 if str =~ filter }
         cnt == regexps.size
+    end
+
+    def regexp_array_found( regexps, str )
+        regexps = [regexps].flatten.compact.
+            map { |s| s.is_a?( Regexp ) ? s : Regexp.new( s.to_s ) }
+        return true if regexps.empty?
+
+        is_found = false
+        regexps.each do |filter|
+            if str =~ filter
+                is_found = true
+                break
+            end
+        end
+
+        is_found
     end
 
     def remove_constants( mod, skip = [] )

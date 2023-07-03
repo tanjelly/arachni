@@ -425,6 +425,9 @@ class Form < Base
         end
 
         def from_rpc_data( data )
+            if data['initialization_options']['inputs'].is_a?( Array )
+                data['initialization_options']['inputs'] = {}
+            end
             # Inputs contain attribute data instead of just values, normalize them.
             if data['initialization_options']['inputs'].values.first.is_a? Hash
                 data['initialization_options']['inputs'].each do |name, details|

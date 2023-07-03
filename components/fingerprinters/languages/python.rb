@@ -15,7 +15,7 @@ module Platform::Fingerprinters
 # @version 0.1.2
 class Python < Platform::Fingerprinter
 
-    IDS       = %w(python zope zserver wsgi plone)
+    IDS       = %w(python zope zserver wsgi plone tornadoserver django)
     EXTENSION = 'py'
 
     def run

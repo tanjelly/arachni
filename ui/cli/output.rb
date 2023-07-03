@@ -50,7 +50,7 @@ module Output
 
         @@error_buffer  = []
 
-        @@error_logfile = "#{Options.paths.logs}error-#{Process.pid}.log"
+        @@error_logfile = "#{Options.paths.logs}error.log"
     end
 
     reset_output_options

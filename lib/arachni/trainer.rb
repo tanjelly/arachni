@@ -120,10 +120,12 @@ class Trainer
 
         if has_new_elements
             @trainings_per_url[incoming_page.url] += 1
-
-            notify_on_new_page incoming_page
-            @framework.push_to_page_queue( incoming_page )
+        else
+            @trainings_per_url[incoming_page.url] = 1
         end
+
+        notify_on_new_page incoming_page
+        @framework.push_to_page_queue( incoming_page )
 
         incoming_page.clear_cache
 

@@ -25,7 +25,8 @@ class Javascript
 
     # @return   [String]
     #   URL to use when requesting our custom JS scripts.
-    SCRIPT_BASE_URL = 'https://javascript.browser.arachni/'
+    SCRIPT_BASE_URL = 'http://javascript.browser.web/'
+    SCRIPT_BASE_URL_SSL = 'https://javascript.browser.web/'
 
     # @return   [String]
     #   Filesystem directory containing the JS scripts.
@@ -316,7 +317,7 @@ class Javascript
     # @see SCRIPT_BASE_URL
     # @see SCRIPT_LIBRARY
     def serve( request, response )
-        return false if !request.url.start_with?( SCRIPT_BASE_URL ) ||
+        return false if (!request.url.start_with?( SCRIPT_BASE_URL ) && !request.url.start_with?( SCRIPT_BASE_URL_SSL ) ) ||
             !(script = read_script( request.parsed_url.path ))
 
         response.code = 200
@@ -335,20 +336,22 @@ class Javascript
     # @see SCRIPT_LIBRARY
     def inject( response )
         # Don't intercept our own stuff!
-        return if response.url.start_with?( SCRIPT_BASE_URL )
+        return if ( response.url.start_with?( SCRIPT_BASE_URL ) || response.url.start_with?( SCRIPT_BASE_URL_SSL ) )
 
         # If it's a JS file, update our JS interfaces in case it has stuff that
         # can be tracked.
         #
         # This is necessary because new files can be required dynamically.
         if javascript?( response )
-
-            response.body.insert 0, <<-EOCODE
-                #{js_comment}
-                #{taint_tracer.stub.function( :update_tracers )};
-                #{dom_monitor.stub.function( :update_trackers )};
-            EOCODE
-            response.body << ";\n"
+            match_data = response.body.to_s.match( /^[^\n]{200}/im )
+            if !match_data || match_data[0].include?( ' ' )
+                response.body.insert 0, <<-EOCODE
+                    #{js_comment}
+                    #{taint_tracer.stub.function( :update_tracers )};
+                    #{dom_monitor.stub.function( :update_trackers )};
+                EOCODE
+                response.body << ";\n"
+            end
 
         # Already has the JS initializer, so it's an HTML response; just update
         # taints and custom code.
@@ -358,7 +361,26 @@ class Javascript
             update_custom_code( response.body )
 
         elsif html?( response )
-
+            response.body.gsub!(
+                /[^.'"\/]*(tb\.53kf\.com|hm\.baidu\.com|[a-z]\d+\.cnzz\.com|\.google-analytics.com|\.volccdn\.com|assets\.giocdn\.com|s\d+\.wapwat\.com|s\.union\.360\.cn)/i,
+                'gxscan'
+            )
+            if response.body =~ /<base\s+href=['"]([^'"]+)/
+                prefix = $1
+                response.body.gsub!(
+                    /\s(src|href)="([^\/][^"]+\.(?:js|css)(?:\?[^"]+)?)"/i,
+                    " \\1=\"#{prefix}\\2\""
+                )
+                response.body.gsub!(
+                    /<base\s+href=['"]([^'"]+)['"][^>]*?>/,
+                    ''
+                )
+            end
+            
+            if response.body =~ /[\-\.][a-f\d]{8,}(\.chunk)?\.js"[^>]*>/
+                return
+            end
+            
             # Perform an update before each script.
             response.body.gsub!(
                 /<script.*?>/i,
@@ -377,11 +399,15 @@ class Javascript
                     "</script> #{html_comment}\n"
             )
 
+            is_ssl = false
+            if response.url.start_with?( 'https://' )
+                is_ssl = true
+            end
             # Include and initialize our JS interfaces.
             response.body.insert 0, <<-EOHTML
-<script src="#{script_url_for( :polyfills )}"></script> #{html_comment}
-<script src="#{script_url_for( :taint_tracer )}"></script> #{html_comment}
-<script src="#{script_url_for( :dom_monitor )}"></script> #{html_comment}
+<script src="#{script_url_for( :polyfills, is_ssl )}"></script> #{html_comment}
+<script src="#{script_url_for( :taint_tracer, is_ssl )}"></script> #{html_comment}
+<script src="#{script_url_for( :dom_monitor, is_ssl )}"></script> #{html_comment}
 <script>
 #{wrapped_dom_monitor_initializer}
 #{wrapped_taint_tracer_initializer( response )}
@@ -401,6 +427,7 @@ class Javascript
     end
 
     def html?( response )
+        return true if response.body.to_s.index( '<!doctype html>' ) == 0
         # If the server says it's HTML dig deeper to ensure it.
         # We don't want wrong response headers messing up the JS env.
         response.html? && Parser.html?( response.body )
@@ -510,13 +537,17 @@ class Javascript
         end
     end
 
-    def script_url_for( filename )
+    def script_url_for( filename, is_ssl )
         if !script_exists?( filename )
             fail ArgumentError,
                  "Script #{filesystem_path_for_script( filename )} does not exist."
         end
 
-        "#{SCRIPT_BASE_URL}#{filename}.js"
+        if is_ssl
+            "#{SCRIPT_BASE_URL_SSL}#{filename}.js"
+        else
+            "#{SCRIPT_BASE_URL}#{filename}.js"
+        end
     end
 
     def unwrap_elements( obj )

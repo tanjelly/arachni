@@ -262,6 +262,9 @@ class Parser
         return if !text?
 
         @document = self.class.parse( body, filter: true )
+    rescue => e
+        print_exception e
+        @document = nil
     end
 
     # @note It will include common request headers as well headers from the HTTP

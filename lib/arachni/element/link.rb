@@ -107,7 +107,9 @@ class Link < Base
             return [] if parser.body && !in_html?( parser.body )
 
             parser.document.nodes_by_name( :a ).map do |link|
+                next if link['href'].nil?
                 next if too_big?( link['href'] )
+                next if link['href'].include?( '://' ) && ['http', 'https'].index( link['href'].split('://').first.downcase ).nil?
 
                 href = to_absolute( link['href'], parser.base )
                 next if !href

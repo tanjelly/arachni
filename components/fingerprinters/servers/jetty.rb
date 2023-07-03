@@ -20,6 +20,9 @@ class Jetty < Platform::Fingerprinter
 
     def run
         platforms << :java << :jetty if server_or_powered_by_include? 'jetty'
+        
+        # Example: <hr><a href="http://eclipse.org/jetty">Powered by Jetty:// 9.4.31.v20200723</a><hr/>
+        platforms << :java << :jetty if page.response.body.to_s.include? '>Powered by Jetty'
     end
 
 end

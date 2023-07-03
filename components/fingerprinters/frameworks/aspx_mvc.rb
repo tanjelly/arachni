@@ -20,7 +20,7 @@ class ASPXMVC < Platform::Fingerprinter
 
     def run
         # Naive but enough, I think.
-        if html? && page.body =~ /input.*#{ANTI_CSRF_NONCE}/i
+        if html? && page.body.to_s =~ /input.*#{ANTI_CSRF_NONCE}/i
             return update_platforms
         end
 

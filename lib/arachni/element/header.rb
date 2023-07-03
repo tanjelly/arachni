@@ -69,7 +69,7 @@ class Header < Base
                 if !ENCODE_CHARACTERS.find { |c| str.include? c }
                     str
                 else
-                    ::URI.encode( str, ENCODE_CHARACTERS_LIST )
+                    Arachni::URI.encode( str, ENCODE_CHARACTERS_LIST )
                 end
             end
         end
@@ -78,7 +78,7 @@ class Header < Base
             header = header.to_s
 
             DECODE_CACHE.fetch( header ) do
-                ::URI.decode( header )
+                Arachni::URI.decode( header )
             end
         end
     end

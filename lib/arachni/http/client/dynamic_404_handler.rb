@@ -246,9 +246,14 @@ class Dynamic404Handler
                 end
 
                 gathered_responses += 1
+                body = if response.body.nil? || response.body.empty?
+                    'NULL'
+                else
+                    response.body.to_s
+                end
 
                 if signature[:body]
-                    signature[:rdiff] = signature[:body].refine( response.body )
+                    signature[:rdiff] = signature[:body].refine( body )
 
                     if gathered_responses == controlled_precision
 
@@ -266,7 +271,7 @@ class Dynamic404Handler
                     end
                 else
                     signature[:body] = Support::Signature.new(
-                        response.body, threshold: SIGNATURE_THRESHOLD
+                        body, threshold: SIGNATURE_THRESHOLD
                     )
                 end
             end
@@ -342,7 +347,7 @@ class Dynamic404Handler
     # In that case we should bail out to avoid corrupted signatures which can
     # lead to FPs.
     def corrupted_response?( response )
-        !response.ok? || (response.code != 404 && response.code != 200)
+        !response.ok? || (response.code != 404 && response.code != 200 && response.code != 502)
     end
 
     def url_for( url )

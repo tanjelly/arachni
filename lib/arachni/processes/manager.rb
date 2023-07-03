@@ -207,9 +207,15 @@ class Manager
             # It's very, **VERY** important that we use this argument format as
             # it bypasses the OS shell and we can thus count on a 1-to-1 process
             # creation and that the PID we get will be for the actual process.
+            
+            # Fix shell parameter length overflow issue
+            ENV['arachni_options'] = encoded_arachni_options
+            arachni_options = {}
+            arachni_options[:without_arachni] = false
+            
             pid = Process.spawn(
                 {
-                    'arachni_options' => encoded_arachni_options
+                    'arachni_options' => Base64.strict_encode64( Marshal.dump(arachni_options) )
                 },
                 RbConfig.ruby,
                 RUNNER,

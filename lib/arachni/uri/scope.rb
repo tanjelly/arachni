@@ -78,12 +78,13 @@ class Scope < Arachni::Scope
     #   `true` if self is in the same domain as {Options#url}, `false` otherwise.
     #
     # @see OptionGroups::Scope#include_subdomains
-    def in_domain?
-        return true if !Options.url
+    def in_domain?( reference = Options.url )
+        return true if !reference
 
+        parsed_ref = URI.parse(reference)
         options.include_subdomains ?
-            Options.parsed_url.domain == @url.domain :
-            Options.parsed_url.host == @url.host
+            parsed_ref.domain == @url.domain :
+            parsed_ref.host == @url.host
     end
 
     # @return   [Bool]

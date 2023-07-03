@@ -141,7 +141,7 @@ class Report
             summary_size = f.read( 4 ).unpack( 'N' ).first
 
             f.rewind
-            from_rpc_data RPC::Serializer.load( f.read( f.size - summary_size ) )
+            from_rpc_data RPC::Serializer.load( f.read( f.size - summary_size - 4 ) )
         end
     end
 
@@ -151,7 +151,7 @@ class Report
     # @return   [String]
     #   Absolute location of the report.
     def save( location = nil )
-        default_filename = "#{URI(url).host} #{@finish_datetime.to_s.gsub( ':', '_' )}.afr"
+        default_filename = "#{Arachni::URI.fast_parse(url)[:host].to_s.gsub(/[: \+]+/, '_')}_#{@finish_datetime.to_s.split('+').first.gsub( /[:\- ]+/, '' )}.afr"
 
         if !location
             location = default_filename

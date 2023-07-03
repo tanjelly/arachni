@@ -249,15 +249,15 @@ class HTTP < Arachni::OptionGroup
     #
     # @see SSL_VERSIONS
     attr_accessor :ssl_version
-
+    
     set_defaults(
-        user_agent:             "Mozilla/5.0 (Gecko) Arachni/v#{Arachni::VERSION}",
+        user_agent:             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36", # "Zerolab-W/v#{Arachni::VERSION}",
         request_timeout:        20_000,
         request_redirect_limit: 5,
         request_concurrency:    10,
         request_queue_size:     50,
         request_headers:        {},
-        response_max_size:      500_000,
+        response_max_size:      8_192_000,
         cookies:                {},
         authentication_type:    'auto'
     )

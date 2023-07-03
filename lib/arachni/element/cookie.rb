@@ -479,7 +479,7 @@ class Cookie < Base
                     #    to spaces, and in order to send back a value that the server
                     #    expects we use '+' for spaces.
 
-                    s = ::URI.encode( str, ENCODE_CHARACTERS_LIST )
+                    s = Arachni::URI.encode( str, ENCODE_CHARACTERS_LIST )
                     s.gsub!( '%20', '+' )
                     s
                 else

@@ -34,6 +34,16 @@ module Signature
         ignore:     []
     }
 
+    SIGNATURE_EXCLUDE_MIMES = [
+        'image/',
+        'audio/',
+        'vedio/',
+        'application/octet-stream',
+        'application/x-javascript',
+        'text/css',
+        'text/javascript'
+    ]
+
     FILE_SIGNATURES = {
         'environ'  => proc do |response|
             next if !response.body.include?( 'DOCUMENT_ROOT=' )
@@ -41,11 +51,11 @@ module Signature
         end,
         'passwd'   => proc do |response|
             if response.body.include?( 'bin/' )
-                /:.+:\d+:\d+:.+:[0-9a-zA-Z\/]+/
+                /\n[a-z\-]{1,10}:x:\d+:\d+:[\w\-]{1,20}:[\w \-\/]+:\//
 
             # Response may have encoded chars as HTML entities.
             elsif response.body.include?( 'bin&#x2f;' ) && response.body.include?( '&#x3a;' )
-                /&#x3a;.+&#x3a;\d+&#x3a;\d+&#x3a;.+&#x3a;[0-9a-zA-Z&#;]+/
+                /[a-z\-]{1,10}&#x3a;x&#x3a;\d+&#x3a;\d+&#x3a;[\w&#;]{1,20}&#x3a;[\w&#;]+/
             end
         end,
         'boot.ini' => '[boot loader]',
@@ -69,7 +79,7 @@ module Signature
 
     SOURCE_CODE_SIGNATURES_PER_PLATFORM = {
         php:  [
-            '<?php'
+            '<?php\s'
         ],
 
         # No need to optimize the following with procs, OR'ed Regexps perform
@@ -77,12 +87,12 @@ module Signature
         # fairly simple.
 
         java: [
-            /<%|<%=|<%@\s+page|<%@\s+include|<%--|import\s+javax.servlet|
+            /<%[\s=]|<%@\s+page|<%@\s+include|<%--|import\s+javax.servlet|
                 import\s+java.io|import=['"]java.io|request\.getParameterValues\(|
                 response\.setHeader|response\.setIntHeader\(/
         ],
         asp:  [
-            /<%|Response\.Write|Request\.Form|Request\.QueryString|
+            /<%\s|Response\.Write|Request\.Form|Request\.QueryString|
                 Response\.Flush|Session\.SessionID|Session\.Timeout|
                 Server\.CreateObject|Server\.MapPath/
         ]
@@ -175,6 +185,9 @@ module Signature
     def find_signatures( signatures, response, opts )
         k = [signatures, response.body]
         return if SIGNATURE_CACHE[:match][k] == false
+
+        matched = SIGNATURE_EXCLUDE_MIMES.select {|p| response.headers.content_type.to_s.start_with?( p ) }
+        return if matched.size > 0
 
         case signatures
             when Regexp, String, Array

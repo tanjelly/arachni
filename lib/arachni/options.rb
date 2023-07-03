@@ -218,9 +218,9 @@ class Options
                  'Invalid URL argument, please provide a full absolute URL and try again.'
 
         # PhantomJS won't proxy localhost.
-        elsif parsed.host == 'localhost' || parsed.host.start_with?( '127.' )
+        elsif parsed.host.start_with?( 'localhost' ) || parsed.host.start_with?( '127.' ) || parsed.host =~ /^\[::[\da-f]{1,4}\]/i
 
-            fail Error::ReservedHostname,
+            fail Error::InvalidURL,
                  "Loopback interfaces (like #{parsed.host}) are not supported," <<
                      ' please use a different IP address or hostname.'
 

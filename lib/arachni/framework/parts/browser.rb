@@ -85,6 +85,12 @@ module Browser
         page = result.is_a?( Page ) ? result : result.page
 
         synchronize do
+            if page.response.headers.content_type.to_s.include?( 'text/html' )
+                page.response.body.to_s.scan( /<script[^>]+src=['"]([^'"]+)/i ).each do | uri, |
+                    url = Arachni::URI.to_absolute( uri, page.url )
+                    push_to_url_queue( url )
+                end
+            end
             return if !push_to_page_queue page
 
             print_status "Got new page from the browser-cluster: #{page.dom.url}"

@@ -66,7 +66,11 @@ module Serializer
     #   Compressed (or not) `string`.
     def compress( string )
         return string if string.size < COMPRESS_LARGER_THAN
-        Zlib::Deflate.deflate string
+        begin
+            Zlib::Deflate.deflate string
+        rescue Zlib::DataError
+            string
+        end
     end
 
     # @note Will return the `string` as is if it was not compressed.

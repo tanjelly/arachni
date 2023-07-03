@@ -43,6 +43,10 @@ class ASPX < Platform::Fingerprinter
         if cookies.include?( SESSION_COOKIE )
             update_platforms
         end
+
+        if page.body.to_s.include?( '</b>&nbsp;Microsoft .NET Framework' )
+            update_platforms
+        end
     end
 
     def update_platforms

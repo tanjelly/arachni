@@ -65,7 +65,7 @@ class URI
         CACHE[name] = Support::Cache::LeastRecentlyPushed.new( size )
     end
 
-    QUERY_CHARACTER_CLASS = Addressable::URI::CharacterClasses::QUERY.sub( '\\&', '' )
+    QUERY_CHARACTER_CLASS = Addressable::URI::CharacterClasses::QUERY.sub( '\\&', '' ).gsub(/=/, '')
 
     VALID_SCHEMES     = Set.new(%w(http https))
     PARTS             = %w(scheme userinfo host port path query)
@@ -96,6 +96,14 @@ class URI
                 s.gsub!( '+', '%2B' )
                 s
             end
+        end
+
+        # URL encodes a string ( basic chars )
+        # @param [String] string
+        # @return   [String]
+        #   Encoded string.
+        def encode_basic( string )
+            string.to_s.gsub( '=', '%3d').gsub( '&', '%26' ).gsub( '#', '%23' ).gsub( '"', '%22' ).gsub( " ", '%20' ).gsub( "\r", '%0d' ).gsub( "\n", '%0a' )
         end
 
         # URL decodes a string.
@@ -155,7 +163,11 @@ class URI
 
             durl = url.downcase
             return if durl.start_with?( 'javascript:' ) ||
-                durl.start_with?( 'data:' )
+                durl.start_with?( 'data:' ) ||
+                durl.start_with?( 'mailto:' ) ||
+                durl.start_with?( 'weixin:' ) ||
+                durl.start_with?( 'bitcoin:' ) ||
+                durl.start_with?( 'irc:' )
 
             # One to rip apart.
             url = url.dup
@@ -261,7 +273,13 @@ class URI
                         !(query = dupped_url.split( '?', 2 ).last).empty?
 
                         components[:query] = (query.split( '&', -1 ).map do |pair|
-                            encode( decode( pair ), QUERY_CHARACTER_CLASS )
+                            if pair.include?( '=' )
+                                (pair.split( '=', 2 ).map do |k|
+                                    encode( decode( k ), QUERY_CHARACTER_CLASS )
+                                end).join( '=' )
+                            else
+                                encode( decode( pair ), QUERY_CHARACTER_CLASS )
+                            end
                         end).join( '&' )
                     end
                 end
@@ -317,13 +335,24 @@ class URI
                     relative = "#{parsed_ref.scheme}:#{relative}"
                 end
 
-                parsed = parse( relative )
+                if relative.start_with?( '#' )
+                    pos = reference.index( '#' )
+                    if !pos.nil?
+                        relative = "#{reference[0, pos]}#{relative}"
+                    else
+                        relative = "#{reference}#{relative}"
+                    end
+                    
+                    cache[key] = relative
+                else
+                    parsed = parse( relative )
+                    
+                    # Doesn't contain anything or interest (javascript: or fragment only),
+                    # return the ref.
+                    return parsed_ref.to_s if !parsed
 
-                # Doesn't contain anything or interest (javascript: or fragment only),
-                # return the ref.
-                return parsed_ref.to_s if !parsed
-
-                cache[key] = parsed.to_absolute( parsed_ref ).to_s.freeze
+                    cache[key] = parsed.to_absolute( parsed_ref ).to_s.freeze
+		end
             rescue
                 cache[key] = :err
                 nil

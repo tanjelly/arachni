@@ -32,6 +32,7 @@ process = ChildProcess.build(
     # The actual request to the origin server will obey the system-side SSL options.
     '--ignore-ssl-errors=true',
     '--ssl-protocol=any',
+    '--load-images=false',
 
     # Uncomment to show better error messages.
     # '--web-security=false',

@@ -65,7 +65,7 @@ Gem::Specification.new do |s|
     s.add_dependency 'childprocess',        '0.9.0'
 
     # RPC serialization.
-    s.add_dependency 'msgpack',             '1.2.4'
+    s.add_dependency 'msgpack',             '1.7.1'
 
     if RUBY_PLATFORM != 'java'
         # Optimized JSON.
@@ -96,7 +96,7 @@ Gem::Specification.new do |s|
     s.add_dependency 'rb-readline',         '0.5.5'
 
     # Markup parsing, for reports and Element::XML.
-    s.add_dependency 'nokogiri'
+    s.add_dependency 'nokogiri',            '3.13.0'
     # Really fast and lightweight markup parsing, for pages.
     s.add_dependency 'ox',                  '2.9.4'
 
@@ -104,8 +104,8 @@ Gem::Specification.new do |s|
     s.add_dependency 'terminal-table',      '1.8.0'
 
     # Browser support for DOM/JS/AJAX analysis stuff.
-    s.add_dependency 'watir',               '6.19.1'
-    s.add_dependency 'selenium-webdriver',  '4.1.0'
+    s.add_dependency 'watir',               '6.12.0'
+    s.add_dependency 'selenium-webdriver',  '3.142.7'
 
     # Markdown to HTML conversion, used by the HTML report for component
     # descriptions.

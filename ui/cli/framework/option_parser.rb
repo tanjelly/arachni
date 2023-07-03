@@ -314,8 +314,8 @@ class OptionParser < UI::CLI::OptionParser
         on( '--http-request-timeout TIMEOUT', Integer,
             'HTTP request timeout in milliseconds.',
             "(Default: #{options.http.request_timeout})"
-        ) do |username|
-            options.http.request_timeout = username
+        ) do |timeout|
+            options.http.request_timeout = timeout
         end
 
         on( '--http-request-redirect-limit LIMIT', Integer,
@@ -733,19 +733,7 @@ class OptionParser < UI::CLI::OptionParser
         validate_report_path
         validate_snapshot_save_path
         validate_session
-        validate_browser
         validate_url
-    end
-
-    def validate_browser
-        if options.browser_cluster.pool_size > 0 &&
-          options.scope.dom_depth_limit > 0 &&
-          !Browser.has_executable?
-
-            print_bad "Missing chromedriver but configured for a DOM scan."
-            print_info "Please install a compatible chromedriver and Chrome version."
-            exit 1
-        end
     end
 
     def validate_url

@@ -23,6 +23,9 @@ class Tomcat < Platform::Fingerprinter
 
             return update_platforms
         end
+
+        # Example: <hr class="line"><h3>Apache Tomcat/8.5.70</h3>
+        platforms << :java << :tomcat if page.response.body.to_s.include? '<hr class="line"><h3>Apache Tomcat'
     end
 
     def update_platforms

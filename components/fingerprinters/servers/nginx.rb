@@ -19,7 +19,12 @@ module Platform::Fingerprinters
 class Nginx < Platform::Fingerprinter
 
     def run
-        platforms << :nginx if server_or_powered_by_include? 'nginx'
+        # Example: Server: nginx/1.1.12
+        # Example: Server: openresty/1.5.0
+        platforms << :nginx if server_or_powered_by_include?( 'nginx' ) or server.include?( 'openresty' )
+        # Example: <hr><center>nginx/1.20.1</center>
+        # Example: <hr><center>openresty/1.19.9.1</center>
+        platforms << :nginx if page.response.body.to_s.include? '<hr><center>nginx' or page.response.body.to_s.include? '<hr><center>openresty'
     end
 
 end

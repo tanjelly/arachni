@@ -64,7 +64,7 @@ class BrowserCluster < Arachni::OptionGroup
         # communication HTTP requests.
         # Name hijacked for compatibility, but should probably change in the
         # future.
-        job_timeout:         60,
+        job_timeout:         30,
         worker_time_to_live: 250,
         ignore_images:       false,
         screen_width:        1600,

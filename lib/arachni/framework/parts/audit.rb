@@ -75,6 +75,8 @@ module Audit
             return false
         end
 
+        # Ignore ASP.NET ErrorPage
+        return if page.dom.url.include?( 'aspxerrorpath=' )
         # Initialize the BrowserCluster.
         browser_cluster
 
@@ -166,6 +168,7 @@ module Audit
         state.status = :scanning if !pausing?
 
         push_to_url_queue( options.url )
+        data.push_to_url_queue options.url
         options.scope.extend_paths.each { |url| push_to_url_queue( url ) }
         options.scope.restrict_paths.each { |url| push_to_url_queue( url, true ) }
 
